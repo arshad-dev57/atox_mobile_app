@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "624387096665",
+    "project_id": "atox-earnings",
+    "storage_bucket": "atox-earnings.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:624387096665:android:1e9a8ff2ad70edf5de7148",
+        "android_client_info": {
+          "package_name": "com.example.atox_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDeE2_lf-c6q5gP5EI5hdDbkDTwPfXDXZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
