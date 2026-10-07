@@ -17,7 +17,7 @@ import 'freemode/free_mode_screen.dart';
 import '../../widgets/modals/recharge_modal.dart';
 import '../../widgets/modals/withdraw_modal.dart';
 import '../../services/database_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -39,25 +39,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkActivePlan() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = firebase_auth.FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     final dbService = DatabaseService();
     final purchases = await dbService.getUserPurchases(user.uid);
-    
-    // An active plan is one whose expireAt is in the future
-    final activePurchases = purchases.where((p) => 
-      p.expireAt == null || p.expireAt!.isAfter(DateTime.now())
-    ).toList();
-    
+
+    // An active plan is one whose expiresAt is in the future
+    final activePurchases = purchases
+        .where(
+          (p) => p.expiresAt == null || p.expiresAt!.isAfter(DateTime.now()),
+        )
+        .toList();
+
     double todayTotal = 0;
     final todayKey = DateTime.now().toIso8601String().split('T')[0];
-    
+
     for (var plan in activePurchases) {
-      final progress = await dbService.getAdProgress(user.uid, plan.productId, todayKey);
+      final progress = await dbService.getAdProgress(
+        user.uid,
+        plan.productId,
+        todayKey,
+      );
       todayTotal += (progress['earned'] as num).toDouble();
     }
-    
+
     if (mounted) {
       setState(() {
         _hasActivePlan = activePurchases.isNotEmpty;
@@ -145,7 +151,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+          color: isActive
+              ? AppColors.primary.withOpacity(0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -175,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Consumer2<AuthProvider, UserProvider>(
       builder: (context, authProvider, userProvider, _) {
         final user = userProvider.userData;
-        
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -210,7 +218,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
@@ -218,7 +229,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 16, color: AppColors.textTertiary),
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: AppColors.textTertiary,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'NIGERIA',
@@ -320,7 +335,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [AppColors.accent.withOpacity(0.1), Colors.orange.withOpacity(0.1)],
+                    colors: [
+                      AppColors.accent.withOpacity(0.1),
+                      Colors.orange.withOpacity(0.1),
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.accent.withOpacity(0.3)),
@@ -395,7 +413,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
                   );
                 },
               ),
@@ -455,11 +475,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 24,
-              ),
+              child: Icon(icon, color: AppColors.primary, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(

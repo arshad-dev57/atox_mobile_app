@@ -35,11 +35,11 @@ class _PaymentModalState extends State<PaymentModal> {
   Future<void> _handleSubmit() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.userData;
-    
+
     if (user == null || user.uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not authenticated")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("User not authenticated")));
       return;
     }
 
@@ -56,34 +56,47 @@ class _PaymentModalState extends State<PaymentModal> {
 
     try {
       String? screenshotUrl = await CloudinaryService.uploadImage(
-        _paymentScreenshot!, 
-        folder: 'plan-payments'
+        _paymentScreenshot!,
+        folder: 'plan-payments',
       );
-      
+
       // Fallback
       screenshotUrl ??= "https://via.placeholder.com/150?text=Upload+Failed";
 
       final payment = PaymentModel(
+        id: '',
         userId: user.uid!,
         productId: widget.plan.id,
-        amount: widget.plan.price.toDouble(),
+        productName: widget.plan.name,
+        amount: widget.plan.price,
         screenshotUrl: screenshotUrl,
+        bankDetails: {
+          'bankName': AppConstants.bankName,
+          'accountNumber': AppConstants.accountNumber,
+          'accountName': AppConstants.accountName,
+        },
         status: 'pending',
         submittedAt: DateTime.now(),
       );
 
       await DatabaseService().createPayment(payment);
-      
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Payment for ${widget.plan.name} submitted! Please wait for approval.")),
+          SnackBar(
+            content: Text(
+              "Payment for ${widget.plan.name} submitted! Please wait for approval.",
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to process payment. Please try again.")),
+          const SnackBar(
+            content: Text("Failed to process payment. Please try again."),
+          ),
         );
       }
     } finally {
@@ -100,7 +113,9 @@ class _PaymentModalState extends State<PaymentModal> {
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 20, right: 20, top: 24,
+        left: 20,
+        right: 20,
+        top: 24,
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -113,23 +128,41 @@ class _PaymentModalState extends State<PaymentModal> {
           children: [
             Center(
               child: Container(
-                width: 64, height: 64,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                  ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
-                    BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5)),
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
                   ],
                 ),
-                child: const Icon(Icons.shopping_cart, color: Colors.white, size: 32),
+                child: const Icon(
+                  Icons.shopping_cart,
+                  color: Colors.white,
+                  size: 32,
+                ),
               ),
             ),
             const SizedBox(height: 16),
             const Center(
-              child: Text("Purchase Plan", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              child: Text(
+                "Purchase Plan",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
-            
+
             // Plan Info
             Container(
               padding: const EdgeInsets.all(16),
@@ -140,9 +173,23 @@ class _PaymentModalState extends State<PaymentModal> {
               ),
               child: Column(
                 children: [
-                  Text(widget.plan.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                  Text(
+                    widget.plan.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text("Total Amount Due: ${CurrencyFormatter.format(widget.plan.price.toDouble())}", style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: AppColors.primary)),
+                  Text(
+                    "Total Amount Due: ${CurrencyFormatter.format(widget.plan.price.toDouble())}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -159,20 +206,39 @@ class _PaymentModalState extends State<PaymentModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("💳 Transfer exactly the amount due to:", style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  const Text(
+                    "💳 Transfer exactly the amount due to:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _buildBankDetailRow("Bank Name:", AppConstants.bankName),
                   const SizedBox(height: 8),
-                  _buildBankDetailRow("Account Number:", AppConstants.accountNumber),
+                  _buildBankDetailRow(
+                    "Account Number:",
+                    AppConstants.accountNumber,
+                  ),
                   const SizedBox(height: 8),
-                  _buildBankDetailRow("Account Name:", AppConstants.accountName),
+                  _buildBankDetailRow(
+                    "Account Name:",
+                    AppConstants.accountName,
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
             // Screenshot Upload
-            const Text("Payment Screenshot", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const Text(
+              "Payment Screenshot",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _pickImage,
@@ -187,15 +253,23 @@ class _PaymentModalState extends State<PaymentModal> {
                 child: Column(
                   children: [
                     Icon(
-                      _paymentScreenshot != null ? Icons.check_circle : Icons.upload_file,
-                      color: _paymentScreenshot != null ? AppColors.primary : AppColors.textTertiary,
+                      _paymentScreenshot != null
+                          ? Icons.check_circle
+                          : Icons.upload_file,
+                      color: _paymentScreenshot != null
+                          ? AppColors.primary
+                          : AppColors.textTertiary,
                       size: 32,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _paymentScreenshot != null ? "Screenshot Selected" : "Upload Receipt/Screenshot",
+                      _paymentScreenshot != null
+                          ? "Screenshot Selected"
+                          : "Upload Receipt/Screenshot",
                       style: TextStyle(
-                        color: _paymentScreenshot != null ? AppColors.primary : AppColors.textSecondary,
+                        color: _paymentScreenshot != null
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -212,10 +286,21 @@ class _PaymentModalState extends State<PaymentModal> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: const BorderSide(color: AppColors.divider, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(
+                        color: AppColors.divider,
+                        width: 2,
+                      ),
                     ),
-                    child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      "Cancel",
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -226,12 +311,27 @@ class _PaymentModalState extends State<PaymentModal> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
-                    child: _loading 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text("Submit", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            "Submit",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -247,8 +347,18 @@ class _PaymentModalState extends State<PaymentModal> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+            fontSize: 13,
+          ),
+        ),
       ],
     );
   }

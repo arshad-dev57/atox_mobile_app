@@ -45,10 +45,17 @@ class _WithdrawHistoryScreenState extends State<WithdrawHistoryScreen> {
         elevation: 0,
       ),
       backgroundColor: AppColors.background,
-      body: _loading 
-        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-        : _withdrawals.isEmpty
-          ? const Center(child: Text("No withdrawals yet.", style: TextStyle(color: AppColors.textSecondary)))
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
+          : _withdrawals.isEmpty
+          ? const Center(
+              child: Text(
+                "No withdrawals yet.",
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _withdrawals.length,
@@ -68,17 +75,42 @@ class _WithdrawHistoryScreenState extends State<WithdrawHistoryScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("₦${w.amount.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(
+                            "₦${w.amount.toInt()}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text("${w.bankName} - ${w.accountNumber}", style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          Text(
+                            "${w.bankDetails['bankName']} - ${w.bankDetails['accountNumber']}",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text(w.createdAt.toString().substring(0, 16), style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                          Text(
+                            w.createdAt.toString().substring(0, 16),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: w.status == 'approved' ? Colors.green.shade50 : (w.status == 'rejected' ? Colors.red.shade50 : Colors.orange.shade50),
+                          color: w.status == 'approved'
+                              ? Colors.green.shade50
+                              : (w.status == 'rejected'
+                                    ? Colors.red.shade50
+                                    : Colors.orange.shade50),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -86,7 +118,11 @@ class _WithdrawHistoryScreenState extends State<WithdrawHistoryScreen> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: w.status == 'approved' ? Colors.green : (w.status == 'rejected' ? Colors.red : Colors.orange),
+                            color: w.status == 'approved'
+                                ? Colors.green
+                                : (w.status == 'rejected'
+                                      ? Colors.red
+                                      : Colors.orange),
                           ),
                         ),
                       ),

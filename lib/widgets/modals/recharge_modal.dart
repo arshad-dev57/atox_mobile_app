@@ -33,26 +33,30 @@ class _RechargeModalState extends State<RechargeModal> {
   Future<void> _handleSubmit() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.userData;
-    
+
     if (user == null || user.uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not authenticated")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("User not authenticated")));
       return;
     }
-    
+
     final amountText = _amountController.text.trim();
     if (amountText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter amount")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please enter amount")));
       return;
     }
-    
+
     final amount = double.tryParse(amountText);
     if (amount == null || amount < AppConstants.minimumRecharge) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Minimum recharge amount is ₦${AppConstants.minimumRecharge}")),
+        SnackBar(
+          content: Text(
+            "Minimum recharge amount is ₦${AppConstants.minimumRecharge}",
+          ),
+        ),
       );
       return;
     }
@@ -70,36 +74,45 @@ class _RechargeModalState extends State<RechargeModal> {
 
     try {
       String? screenshotUrl = await CloudinaryService.uploadImage(
-        _paymentScreenshot!, 
-        folder: 'recharge-screenshots'
+        _paymentScreenshot!,
+        folder: 'recharge-screenshots',
       );
-      
+
       // Fallback if cloudinary upload fails
       screenshotUrl ??= "https://via.placeholder.com/150?text=Upload+Failed";
 
       final recharge = RechargeModel(
+        id: '',
         userId: user.uid!,
-        amount: amount,
+        amount: amount.toInt(),
         screenshotUrl: screenshotUrl,
+        bankDetails: {
+          'bankName': AppConstants.bankName,
+          'accountNumber': AppConstants.accountNumber,
+          'accountName': AppConstants.accountName,
+        },
         status: 'pending',
-        bankName: AppConstants.bankName,
-        accountNumber: AppConstants.accountNumber,
-        accountName: AppConstants.accountName,
         createdAt: DateTime.now(),
       );
 
       await DatabaseService().createRecharge(recharge);
-      
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Recharge request of ₦${amount.toInt()} submitted! It will reflect in your balance upon approval.")),
+          SnackBar(
+            content: Text(
+              "Recharge request of ₦${amount.toInt()} submitted! It will reflect in your balance upon approval.",
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to process recharge. Please try again.")),
+          const SnackBar(
+            content: Text("Failed to process recharge. Please try again."),
+          ),
         );
       }
     } finally {
@@ -144,12 +157,20 @@ class _RechargeModalState extends State<RechargeModal> {
                   ),
                 ],
               ),
-              child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 32),
+              child: const Icon(
+                Icons.account_balance_wallet,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
               "Recharge Wallet",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -164,14 +185,19 @@ class _RechargeModalState extends State<RechargeModal> {
               children: [
                 const Text(
                   "Amount (₦)",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _amountController,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    hintText: "Enter amount (min ₦${AppConstants.minimumRecharge})",
+                    hintText:
+                        "Enter amount (min ₦${AppConstants.minimumRecharge})",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.divider),
@@ -180,7 +206,10 @@ class _RechargeModalState extends State<RechargeModal> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.primary),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ],
@@ -198,13 +227,25 @@ class _RechargeModalState extends State<RechargeModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("💳 Bank Details", style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  const Text(
+                    "💳 Bank Details",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _buildBankDetailRow("Bank Name:", AppConstants.bankName),
                   const SizedBox(height: 8),
-                  _buildBankDetailRow("Account Number:", AppConstants.accountNumber),
+                  _buildBankDetailRow(
+                    "Account Number:",
+                    AppConstants.accountNumber,
+                  ),
                   const SizedBox(height: 8),
-                  _buildBankDetailRow("Account Name:", AppConstants.accountName),
+                  _buildBankDetailRow(
+                    "Account Name:",
+                    AppConstants.accountName,
+                  ),
                 ],
               ),
             ),
@@ -216,7 +257,11 @@ class _RechargeModalState extends State<RechargeModal> {
               children: [
                 const Text(
                   "Payment Screenshot",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 GestureDetector(
@@ -232,15 +277,23 @@ class _RechargeModalState extends State<RechargeModal> {
                     child: Column(
                       children: [
                         Icon(
-                          _paymentScreenshot != null ? Icons.check_circle : Icons.upload_file,
-                          color: _paymentScreenshot != null ? AppColors.primary : AppColors.textTertiary,
+                          _paymentScreenshot != null
+                              ? Icons.check_circle
+                              : Icons.upload_file,
+                          color: _paymentScreenshot != null
+                              ? AppColors.primary
+                              : AppColors.textTertiary,
                           size: 32,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _paymentScreenshot != null ? "Screenshot Selected" : "Upload Screenshot",
+                          _paymentScreenshot != null
+                              ? "Screenshot Selected"
+                              : "Upload Screenshot",
                           style: TextStyle(
-                            color: _paymentScreenshot != null ? AppColors.primary : AppColors.textSecondary,
+                            color: _paymentScreenshot != null
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -260,10 +313,21 @@ class _RechargeModalState extends State<RechargeModal> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: const BorderSide(color: AppColors.divider, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: const BorderSide(
+                        color: AppColors.divider,
+                        width: 2,
+                      ),
                     ),
-                    child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      "Cancel",
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -274,12 +338,27 @@ class _RechargeModalState extends State<RechargeModal> {
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
-                    child: _loading 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text("Recharge", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            "Recharge",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -295,8 +374,18 @@ class _RechargeModalState extends State<RechargeModal> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary, fontSize: 13)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+            fontSize: 13,
+          ),
+        ),
       ],
     );
   }

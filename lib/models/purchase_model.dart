@@ -7,6 +7,8 @@ class PurchaseModel {
   final DateTime purchasedAt;
   final DateTime? expiresAt;
   final String status;
+  final int? ads;
+  final int? dailyIncome;
 
   PurchaseModel({
     required this.id,
@@ -17,6 +19,8 @@ class PurchaseModel {
     required this.purchasedAt,
     this.expiresAt,
     this.status = 'active',
+    this.ads,
+    this.dailyIncome,
   });
 
   factory PurchaseModel.fromMap(Map<String, dynamic> map) {
@@ -31,10 +35,12 @@ class PurchaseModel {
           : DateTime.parse(map['purchasedAt'] as String),
       expiresAt: map['expiresAt'] != null
           ? (map['expiresAt'] is DateTime
-              ? map['expiresAt'] as DateTime
-              : DateTime.parse(map['expiresAt'] as String))
+                ? map['expiresAt'] as DateTime
+                : DateTime.parse(map['expiresAt'] as String))
           : null,
       status: map['status'] as String? ?? 'active',
+      ads: map['ads'] as int?,
+      dailyIncome: map['dailyIncome'] as int?,
     );
   }
 
@@ -48,6 +54,8 @@ class PurchaseModel {
       'purchasedAt': purchasedAt.toIso8601String(),
       'expiresAt': expiresAt?.toIso8601String(),
       'status': status,
+      'ads': ads,
+      'dailyIncome': dailyIncome,
     };
   }
 

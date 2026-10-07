@@ -2,7 +2,7 @@ import 'package:atox_mobile_app/models/plan_model.dart';
 import 'package:atox_mobile_app/utils/constants.dart';
 import 'package:atox_mobile_app/utils/currency_formatter.dart';
 import 'package:flutter/material.dart';
-import '../../widgets/modals/payment_modal.dart';
+import '../../../widgets/modals/payment_modal.dart';
 import 'package:provider/provider.dart';
 import 'package:atox_mobile_app/providers/user_provider.dart';
 import 'package:atox_mobile_app/services/database_service.dart';
@@ -60,10 +60,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           children: [
             Text(
               'Choose a plan that fits your goals',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),
             ...Plans.allPlans.map((plan) => _buildPlanCard(context, plan)),
@@ -130,7 +127,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -175,10 +175,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 const SizedBox(height: 20),
                 _buildDetailRow('Daily Ads', '${plan.ads} ads'),
                 _buildDetailRow('Duration', plan.term),
-                _buildDetailRow('Daily Income', CurrencyFormatter.format(plan.dailyIncome.toDouble())),
+                _buildDetailRow(
+                  'Daily Income',
+                  CurrencyFormatter.format(plan.dailyIncome.toDouble()),
+                ),
                 const Divider(height: 24),
-                _buildDetailRow('Total Return', CurrencyFormatter.format(plan.totalIncome.toDouble()),
-                    isBold: true),
+                _buildDetailRow(
+                  'Total Return',
+                  CurrencyFormatter.format(plan.totalIncome.toDouble()),
+                  isBold: true,
+                ),
                 _buildDetailRow(
                   'ROI',
                   '+${((plan.totalIncome / plan.price) * 100).round()}%',
@@ -189,10 +195,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      final hasPending = _payments.any((p) => p.status == 'pending');
+                      final hasPending = _payments.any(
+                        (p) => p.status == 'pending',
+                      );
                       if (hasPending) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("You already have a pending payment request. Please wait for approval.")),
+                          const SnackBar(
+                            content: Text(
+                              "You already have a pending payment request. Please wait for approval.",
+                            ),
+                          ),
                         );
                         return;
                       }
@@ -202,7 +214,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (context) => PaymentModal(plan: plan),
-                      ).then((_) => _fetchPayments()); // Refresh payments after closing
+                      ).then(
+                        (_) => _fetchPayments(),
+                      ); // Refresh payments after closing
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _getColorFromString(plan.color),
@@ -230,7 +244,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isBold = false, Color? color}) {
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -238,10 +257,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
           Text(
             value,
@@ -259,10 +275,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Color _getColorFromString(String colorString) {
     // Simple color mapping from the web app's gradient strings
     if (colorString.contains('blue')) return Colors.blue;
-    if (colorString.contains('green') || colorString.contains('emerald')) return AppColors.primary;
-    if (colorString.contains('orange') || colorString.contains('yellow')) return AppColors.accent;
+    if (colorString.contains('green') || colorString.contains('emerald'))
+      return AppColors.primary;
+    if (colorString.contains('orange') || colorString.contains('yellow'))
+      return AppColors.accent;
     if (colorString.contains('purple')) return Colors.purple;
-    if (colorString.contains('gray') || colorString.contains('silver')) return Colors.grey;
+    if (colorString.contains('gray') || colorString.contains('silver'))
+      return Colors.grey;
     if (colorString.contains('cyan')) return Colors.cyan;
     return AppColors.primary;
   }
