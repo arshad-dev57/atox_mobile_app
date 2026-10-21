@@ -32,12 +32,11 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
+            // Minify/R8 was crashing the app on launch (stripped Firebase/plugin classes).
+            // AdMob does not require minify. Keep proguard-rules.pro for when you
+            // re-enable this later with full keep rules.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

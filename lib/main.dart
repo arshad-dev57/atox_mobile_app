@@ -19,8 +19,12 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Register & initialize AdMob (no-ops safely on web/desktop).
-  await Get.putAsync(() => AdService().init());
+  // Ads must never block or crash app startup.
+  try {
+    await Get.putAsync(() => AdService().init());
+  } catch (e, st) {
+    debugPrint('[main] AdService init skipped: $e\n$st');
+  }
 
   runApp(const MyApp());
 }
