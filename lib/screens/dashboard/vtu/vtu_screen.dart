@@ -4,6 +4,15 @@ import '../../../../utils/constants.dart';
 import '../../../../services/api_service.dart';
 import '../../../../providers/user_provider.dart';
 
+// Design tokens (same as the rest of the app)
+const Color _kOrange = Color(0xFFF26A2E);
+const Color _kOrangeSoft = Color(0xFFFFEDE3);
+const Color _kBg = Color(0xFFF4F4F6);
+const Color _kInk = Color(0xFF16161A);
+const Color _kMuted = Color(0xFF9A9AA5);
+const Color _kBtnDark = Color(0xFF1B1B1F);
+const Color _kRed = Color(0xFFE5484D);
+
 class VTUScreen extends StatefulWidget {
   const VTUScreen({super.key});
 
@@ -25,6 +34,14 @@ class _VTUScreenState extends State<VTUScreen> {
     {'id': 3, 'name': 'Airtel'},
     {'id': 4, 'name': '9mobile'},
   ];
+
+  // Brand colors for the network badges
+  static const Map<int, Color> _brandColors = {
+    1: Color(0xFFFFC400),
+    2: Color(0xFF2BB673),
+    3: Color(0xFFE5484D),
+    4: Color(0xFF0B7A4B),
+  };
 
   final List<Map<String, dynamic>> _allDataPlans = [
     // MTN
@@ -87,19 +104,32 @@ class _VTUScreenState extends State<VTUScreen> {
     super.dispose();
   }
 
+  void _snack(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? _kRed : _kInk,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+
   Future<void> _handlePurchase() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final user = userProvider.userData;
-    
+
     if (user == null || user.uid == null) return;
-    
+
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter phone number')));
+      _snack('Please enter phone number', error: true);
       return;
     }
 
-    setState(() { _loading = true; });
+    setState(() {
+      _loading = true;
+    });
 
     try {
       final apiService = ApiService();
@@ -117,9 +147,14 @@ class _VTUScreenState extends State<VTUScreen> {
           amount: amt,
         );
       } else {
-        final plans = _allDataPlans.where((p) => p['providerId'] == _selectedProvider).toList();
-        final selectedPlan = plans.firstWhere((p) => p['id'] == _selectedBundleId, orElse: () => plans.first);
-        
+        final plans = _allDataPlans
+            .where((p) => p['providerId'] == _selectedProvider)
+            .toList();
+        final selectedPlan = plans.firstWhere(
+          (p) => p['id'] == _selectedBundleId,
+          orElse: () => plans.first,
+        );
+
         response = await apiService.purchaseData(
           userId: user.uid!,
           bundleId: _selectedBundleId,
@@ -134,209 +169,525 @@ class _VTUScreenState extends State<VTUScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'] ?? 'Purchase successful!')));
+        _snack(response['message'] ?? 'Purchase successful!');
         _phoneController.clear();
         _amountController.clear();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll("Exception: ", ""))));
+        _snack(e.toString().replaceAll("Exception: ", ""), error: true);
       }
     } finally {
-      if (mounted) setState(() { _loading = false; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
+  // ───────────────────────── BUILD ─────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final availableDataPlans = _allDataPlans.where((p) => p['providerId'] == _selectedProvider).toList();
+    final availableDataPlans = _allDataPlans
+        .where((p) => p['providerId'] == _selectedProvider)
+        .toList();
 
     // Ensure selected bundle is valid for provider
-    if (!availableDataPlans.any((p) => p['id'] == _selectedBundleId) && availableDataPlans.isNotEmpty) {
+    if (!availableDataPlans.any((p) => p['id'] == _selectedBundleId) &&
+        availableDataPlans.isNotEmpty) {
       _selectedBundleId = availableDataPlans.first['id'] as int;
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Data & Airtime'),
-        backgroundColor: AppColors.surface,
-        elevation: 0,
+      backgroundColor: _kBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopBar(),
+              const SizedBox(height: 18),
+              _buildTypeToggle(),
+              const SizedBox(height: 16),
+              _buildMainCard(availableDataPlans),
+              const SizedBox(height: 18),
+              _buildSummaryAndButton(availableDataPlans),
+            ],
+          ),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Purchase airtime and data bundles instantly', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.divider),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+    );
+  }
+
+  // ───────────────────────── TOP BAR ─────────────────────────
+
+  Widget _circleBtn(IconData icon, VoidCallback? onTap) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Toggle
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _purchaseType = 'airtime'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _purchaseType == 'airtime' ? AppColors.surface : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: _purchaseType == 'airtime' ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null,
-                              ),
-                              child: Text('Airtime', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, color: _purchaseType == 'airtime' ? AppColors.primary : AppColors.textSecondary)),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _purchaseType = 'data'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _purchaseType == 'data' ? AppColors.surface : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: _purchaseType == 'data' ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null,
-                              ),
-                              child: Text('Data', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, color: _purchaseType == 'data' ? AppColors.primary : AppColors.textSecondary)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+            ],
+          ),
+          child: Icon(icon, size: 20, color: _kInk),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _circleBtn(
+          Icons.arrow_back_ios_new_rounded,
+          () => Navigator.of(context).pop(),
+        ),
+        const Text(
+          'Data & Airtime',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: _kInk,
+          ),
+        ),
+        const SizedBox(width: 44, height: 44),
+      ],
+    );
+  }
+
+  // ───────────────────────── TYPE TOGGLE ─────────────────────────
+
+  Widget _buildTypeToggle() {
+    Widget pill(String label, String value, IconData icon) {
+      final active = _purchaseType == value;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _purchaseType = value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: active ? _kOrange : Colors.transparent,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: active ? Colors.white : _kMuted),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: active ? Colors.white : _kMuted,
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Network Selection
-                  const Text('Select Network', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: _providers.map((provider) {
-                      final isSelected = _selectedProvider == provider['id'];
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(right: provider != _providers.last ? 8 : 0),
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedProvider = provider['id']),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: isSelected ? AppColors.primary : AppColors.divider, width: isSelected ? 2 : 1),
-                              ),
-                              child: Text(
-                                provider['name'],
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? AppColors.primary : AppColors.textSecondary, fontSize: 13),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        children: [
+          pill('Airtime', 'airtime', Icons.phone_in_talk_rounded),
+          pill('Data', 'data', Icons.wifi_rounded),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── MAIN CARD ─────────────────────────
+
+  Widget _buildMainCard(List<Map<String, dynamic>> plans) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label('Select network'),
+          const SizedBox(height: 10),
+          Row(
+            children: _providers.map((provider) {
+              final id = provider['id'] as int;
+              final selected = _selectedProvider == id;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: provider != _providers.last ? 8 : 0,
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Phone Number
-                  const Text('Phone Number', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. 08012345678',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-                      filled: true,
-                      fillColor: AppColors.background,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Amount or Data Plan
-                  if (_purchaseType == 'airtime')
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Amount (NGN)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _amountController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: 'Enter amount',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-                            filled: true,
-                            fillColor: AppColors.background,
-                          ),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedProvider = id),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selected ? _kOrangeSoft : _kBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: selected ? _kOrange : Colors.transparent,
+                          width: 1.5,
                         ),
-                      ],
-                    )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Select Data Plan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(border: Border.all(color: AppColors.divider), borderRadius: BorderRadius.circular(12)),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int>(
-                              isExpanded: true,
-                              value: _selectedBundleId,
-                              items: availableDataPlans.map((p) {
-                                return DropdownMenuItem<int>(
-                                  value: p['id'] as int,
-                                  child: Text("${p['name']} — ₦${p['price']}"),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                if (value != null) setState(() => _selectedBundleId = value);
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 32),
-                  
-                  // Purchase Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _handlePurchase,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: _loading 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('Purchase Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _brandColors[id] ?? _kOrange,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              (provider['name'] as String).substring(0, 1),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: id == 1 ? _kInk : Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            provider['name'] as String,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: selected ? _kOrange : _kInk,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+          _label('Phone number'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: _decoration(
+              'e.g. 08012345678',
+              icon: Icons.phone_outlined,
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (_purchaseType == 'airtime') _buildAirtimeSection() else _buildDataSection(plans),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAirtimeSection() {
+    const quick = [100, 200, 500, 1000];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Amount (NGN)'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
+          decoration: _decoration(
+            'Enter amount',
+            icon: Icons.payments_outlined,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: quick.map((v) {
+            final selected = _amountController.text.trim() == v.toString();
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: v != quick.last ? 8 : 0),
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _amountController.text = v.toString();
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected ? _kOrange : _kOrangeSoft,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '₦$v',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: selected ? Colors.white : _kOrange,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDataSection(List<Map<String, dynamic>> plans) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _label('Select data plan'),
+            Text(
+              '${plans.length} plans',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _kOrange,
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 10),
+        Container(
+          height: 320,
+          decoration: BoxDecoration(
+            color: _kBg,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(8),
+              itemCount: plans.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, i) {
+                final p = plans[i];
+                final selected = p['id'] == _selectedBundleId;
+                return GestureDetector(
+                  onTap: () =>
+                      setState(() => _selectedBundleId = p['id'] as int),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 13,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected ? _kOrangeSoft : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: selected ? _kOrange : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          selected
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 20,
+                          color: selected ? _kOrange : const Color(0xFFCFCFD6),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            p['name'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _kInk,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '₦${p['price']}',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: selected ? _kOrange : _kInk,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ───────────────────────── SUMMARY + BUTTON ─────────────────────────
+
+  Widget _buildSummaryAndButton(List<Map<String, dynamic>> plans) {
+    String total;
+    if (_purchaseType == 'airtime') {
+      final amt = int.tryParse(_amountController.text.trim());
+      total = amt != null && amt > 0 ? '₦$amt' : '₦0';
+    } else {
+      final selected = plans.firstWhere(
+        (p) => p['id'] == _selectedBundleId,
+        orElse: () => plans.first,
+      );
+      total = '₦${selected['price']}';
+    }
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: _kOrangeSoft,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'You pay',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kInk,
+                ),
+              ),
+              Text(
+                total,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: _kOrange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Material(
+          color: _loading ? _kBtnDark.withOpacity(0.6) : _kBtnDark,
+          borderRadius: BorderRadius.circular(40),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(40),
+            onTap: _loading ? null : _handlePurchase,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(28, 8, 8, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Purchase Now',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: _kOrange,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _loading
+                        ? const Padding(
+                            padding: EdgeInsets.all(15),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ───────────────────────── HELPERS ─────────────────────────
+
+  Widget _label(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: _kInk,
+        ),
+      );
+
+  InputDecoration _decoration(String hint, {required IconData icon}) {
+    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: c, width: w),
+        );
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _kMuted, fontSize: 14),
+      prefixIcon: Icon(icon, color: _kMuted, size: 20),
+      filled: true,
+      fillColor: _kBg,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      border: border(Colors.transparent),
+      enabledBorder: border(Colors.transparent),
+      focusedBorder: border(_kOrange, 1.5),
     );
   }
 }

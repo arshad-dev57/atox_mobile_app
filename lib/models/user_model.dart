@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String? uid;
   final String? email;
@@ -38,6 +40,15 @@ class UserModel {
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
+    // Helper function to convert Timestamp, DateTime, or String to DateTime
+    DateTime? parseDateTime(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.parse(value);
+      return null;
+    }
+
     return UserModel(
       uid: map['uid'] as String?,
       email: map['email'] as String?,
@@ -51,16 +62,8 @@ class UserModel {
       totalWithdrawn: (map['totalWithdrawn'] as num?)?.toDouble() ?? 0,
       referralCount: map['referralCount'] as int? ?? 0,
       referralBonusPaid: map['referralBonusPaid'] as bool? ?? false,
-      createdAt: map['createdAt'] != null 
-          ? (map['createdAt'] is DateTime 
-              ? map['createdAt'] as DateTime 
-              : DateTime.parse(map['createdAt'] as String))
-          : null,
-      updatedAt: map['updatedAt'] != null 
-          ? (map['updatedAt'] is DateTime 
-              ? map['updatedAt'] as DateTime 
-              : DateTime.parse(map['updatedAt'] as String))
-          : null,
+      createdAt: parseDateTime(map['createdAt']),
+      updatedAt: parseDateTime(map['updatedAt']),
       isActive: map['isActive'] as bool? ?? true,
       accountStatus: map['accountStatus'] as String? ?? 'active',
       isAdmin: map['isAdmin'] as bool? ?? false,

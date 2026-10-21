@@ -58,6 +58,15 @@ dependencies:
   # HTTP
   http: ^1.2.2
 
+  # Video (Watch and Earn ad player)
+  video_player: ^2.8.2
+
+  # Ads
+  google_mobile_ads: ^9.1.0
+
+  # Lightweight DI / service locator for AdService (GetxService)
+  get: ^4.7.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -79,6 +88,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Watch and Earn ad video (bundled, mirrors web static ad mode)
+  assets:
+    - assets/ads/ad-content.mp4
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -7,18 +7,23 @@ class AppConstants {
   static const String accountName = 'wisdom chima innocent';
 
   // Withdrawal settings
-  static const int minimumWithdrawal = 5000;
+  static const int minimumWithdrawal = 2000;
   static const double withdrawalFee = 0.10; // 10%
-  static const int withdrawalDayOfWeek = 5; // Friday (0 = Sunday, 6 = Saturday)
-  static const int withdrawalStartHour = 8; // 8 AM
-  static const int withdrawalEndHour = 20; // 8 PM
+  // Withdrawals are available DAILY (any day). A user may submit only ONE
+  // withdrawal request per day.
 
   // Recharge settings
   static const int minimumRecharge = 100;
 
-  // Free mode
-  static const String freeModeId = 'free-mode';
-  static const int freeModeEarningPerAd = 10;
+  // Watch and Earn (formerly "Free Mode") — for users with no active VIP plan.
+  // productId/doc id kept as "freemode" to match the web platform's Firestore data.
+  static const String watchAndEarnId = 'freemode';
+  static const int watchAndEarnPerAd = 10; // ₦10 per completed ad
+
+  // Watch and Earn ad settings (mirrors the web's static-video + forced timer mode)
+  static const String watchAndEarnVideoAsset = 'assets/ads/ad-content.mp4';
+  static const int adWatchSeconds = 15; // forced watch duration before claiming
+  static const String adsterraSmartlinkUrl = 'https://otieu.com/4/30356717';
 
   // WhatsApp support
   static const String whatsappNumber = '+2349072485676';

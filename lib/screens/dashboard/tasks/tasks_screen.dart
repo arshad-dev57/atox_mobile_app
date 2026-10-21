@@ -8,7 +8,8 @@ import '../../../models/purchase_model.dart';
 import '../../../providers/user_provider.dart';
 
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key});
+  final VoidCallback? onOpenMenu;
+  const TasksScreen({super.key, this.onOpenMenu});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -63,6 +64,12 @@ class _TasksScreenState extends State<TasksScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onOpenMenu != null
+            ? IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: widget.onOpenMenu,
+              )
+            : null,
         title: const Text('My Tasks'),
         backgroundColor: AppColors.surface,
         elevation: 0,

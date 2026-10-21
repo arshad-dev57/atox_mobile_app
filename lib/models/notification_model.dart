@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class NotificationModel {
   final String id;
   final String userId;
@@ -18,15 +20,22 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
+    // Helper function to convert Timestamp, DateTime, or String to DateTime
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is DateTime) return value;
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.parse(value);
+      return DateTime.now();
+    }
+
     return NotificationModel(
       id: map['id'] as String,
       userId: map['userId'] as String,
       title: map['title'] as String,
       message: map['message'] as String,
       type: map['type'] as String? ?? 'info',
-      createdAt: map['createdAt'] is DateTime
-          ? map['createdAt'] as DateTime
-          : DateTime.parse(map['createdAt'] as String),
+      createdAt: parseDateTime(map['createdAt']),
       read: map['read'] as bool? ?? false,
     );
   }

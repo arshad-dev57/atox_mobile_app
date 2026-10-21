@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class PurchaseModel {
   final String id;
   final String userId;
@@ -24,20 +26,23 @@ class PurchaseModel {
   });
 
   factory PurchaseModel.fromMap(Map<String, dynamic> map) {
+    // Helper function to convert Timestamp, DateTime, or String to DateTime
+    DateTime? parseDateTime(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.parse(value);
+      return null;
+    }
+
     return PurchaseModel(
       id: map['id'] as String,
       userId: map['userId'] as String,
       productId: map['productId'] as String,
-      productName: map['productName'] as String,
-      amount: map['amount'] as int,
-      purchasedAt: map['purchasedAt'] is DateTime
-          ? map['purchasedAt'] as DateTime
-          : DateTime.parse(map['purchasedAt'] as String),
-      expiresAt: map['expiresAt'] != null
-          ? (map['expiresAt'] is DateTime
-                ? map['expiresAt'] as DateTime
-                : DateTime.parse(map['expiresAt'] as String))
-          : null,
+      productName: map['productName'] as String? ?? 'Unknown Plan',
+      amount: (map['amount'] as num?)?.toInt() ?? 0,
+      purchasedAt: parseDateTime(map['purchasedAt']) ?? DateTime.now(),
+      expiresAt: parseDateTime(map['expiresAt']),
       status: map['status'] as String? ?? 'active',
       ads: map['ads'] as int?,
       dailyIncome: map['dailyIncome'] as int?,

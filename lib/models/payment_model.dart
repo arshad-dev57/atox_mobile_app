@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class PaymentModel {
   final String id;
   final String userId;
@@ -22,6 +24,15 @@ class PaymentModel {
   });
 
   factory PaymentModel.fromMap(Map<String, dynamic> map) {
+    // Helper function to convert Timestamp, DateTime, or String to DateTime
+    DateTime parseDateTime(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is DateTime) return value;
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.parse(value);
+      return DateTime.now();
+    }
+
     return PaymentModel(
       id: map['id'] as String,
       userId: map['userId'] as String,
@@ -31,9 +42,7 @@ class PaymentModel {
       screenshotUrl: map['screenshotUrl'] as String,
       bankDetails: Map<String, String>.from(map['bankDetails'] as Map),
       status: map['status'] as String? ?? 'pending',
-      submittedAt: map['submittedAt'] is DateTime
-          ? map['submittedAt'] as DateTime
-          : DateTime.parse(map['submittedAt'] as String),
+      submittedAt: parseDateTime(map['submittedAt']),
     );
   }
 

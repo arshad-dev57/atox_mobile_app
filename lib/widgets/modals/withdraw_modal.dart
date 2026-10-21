@@ -5,6 +5,16 @@ import '../../services/database_service.dart';
 import '../../models/withdrawal_model.dart';
 import '../../providers/user_provider.dart';
 
+// Design tokens (same as the rest of the app)
+const Color _kOrange = Color(0xFFF26A2E);
+const Color _kOrangeSoft = Color(0xFFFFEDE3);
+const Color _kBg = Color(0xFFF4F4F6);
+const Color _kInk = Color(0xFF16161A);
+const Color _kMuted = Color(0xFF9A9AA5);
+const Color _kBtnDark = Color(0xFF1B1B1F);
+const Color _kRed = Color(0xFFE5484D);
+const Color _kRedSoft = Color(0xFFFDECEC);
+
 class WithdrawModal extends StatefulWidget {
   const WithdrawModal({Key? key}) : super(key: key);
 
@@ -22,13 +32,41 @@ class _WithdrawModalState extends State<WithdrawModal> {
   String _balanceType = 'referral';
   bool _loading = false;
 
-  bool get _isTaskAllowed {
-    final now = DateTime.now();
-    // UTC+1 for Nigerian Time roughly
-    final nigeriaTime = now.toUtc().add(const Duration(hours: 1));
-    final isFriday = nigeriaTime.weekday == DateTime.friday;
-    final hour = nigeriaTime.hour;
-    return isFriday && hour >= 8 && hour < 20;
+  // Whether the user already submitted a withdrawal today (loaded on open).
+  bool _withdrawnToday = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkWithdrawnToday();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _bankNameController.dispose();
+    _accountNumberController.dispose();
+    _accountNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkWithdrawnToday() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final uid = userProvider.userData?.uid;
+    if (uid == null) return;
+    final already = await DatabaseService().hasWithdrawnToday(uid);
+    if (mounted) setState(() => _withdrawnToday = already);
+  }
+
+  void _snack(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? _kRed : _kInk,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
   }
 
   Future<void> _handleSubmit() async {
@@ -36,29 +74,22 @@ class _WithdrawModalState extends State<WithdrawModal> {
     final user = userProvider.userData;
 
     if (user == null || user.uid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("User not authenticated")));
+      _snack("User not authenticated", error: true);
       return;
     }
 
     final amountText = _amountController.text.trim();
     if (amountText.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please enter amount")));
+      _snack("Please enter amount", error: true);
       return;
     }
 
     final withdrawAmount = double.tryParse(amountText);
     if (withdrawAmount == null ||
         withdrawAmount < AppConstants.minimumWithdrawal) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Minimum withdrawal is ₦${AppConstants.minimumWithdrawal}",
-          ),
-        ),
+      _snack(
+        "Minimum withdrawal is ₦${AppConstants.minimumWithdrawal}",
+        error: true,
       );
       return;
     }
@@ -68,9 +99,7 @@ class _WithdrawModalState extends State<WithdrawModal> {
     final accountName = _accountNameController.text.trim();
 
     if (bankName.isEmpty || accountNumber.isEmpty || accountName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all bank details")),
-      );
+      _snack("Please fill all bank details", error: true);
       return;
     }
 
@@ -78,21 +107,15 @@ class _WithdrawModalState extends State<WithdrawModal> {
     final availableBalance = isTask ? user.balance : user.referralBalance;
 
     if (withdrawAmount > availableBalance) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Insufficient ${isTask ? 'Task' : 'Referral'} balance"),
-        ),
-      );
+      _snack("Insufficient ${isTask ? 'Task' : 'Referral'} balance", error: true);
       return;
     }
 
-    if (isTask && !_isTaskAllowed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Task Balance can only be withdrawn on Fridays between 8:00 AM and 8:00 PM (Nigerian Time).",
-          ),
-        ),
+    // One withdrawal per day rule.
+    if (_withdrawnToday) {
+      _snack(
+        "You can only withdraw once per day. Please try again tomorrow.",
+        error: true,
       );
       return;
     }
@@ -123,44 +146,40 @@ class _WithdrawModalState extends State<WithdrawModal> {
 
       await DatabaseService().createWithdrawal(withdrawal);
 
-      // Deduct from balance
+      // Deduct from balance atomically (delta) so the real-time user stream
+      // and every screen stay consistent.
       if (isTask) {
-        await userProvider.updateBalance(
+        await DatabaseService().incrementUserData(
           user.uid!,
-          user.balance - withdrawAmount,
+          balanceDelta: -withdrawAmount,
         );
       } else {
-        await userProvider.updateReferralBalance(
+        await DatabaseService().incrementUserData(
           user.uid!,
-          user.referralBalance - withdrawAmount,
+          referralBalanceDelta: -withdrawAmount,
         );
       }
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Withdrawal of ₦${withdrawAmount.toInt()} submitted successfully! After 10% fee (₦${fee.toInt()}), you will receive ₦${finalAmount.toInt()}.",
-            ),
-          ),
+        _snack(
+          "Withdrawal of ₦${withdrawAmount.toInt()} submitted successfully! After 10% fee (₦${fee.toInt()}), you will receive ₦${finalAmount.toInt()}.",
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to process withdrawal. Please try again."),
-          ),
-        );
+        _snack("Failed to process withdrawal. Please try again.", error: true);
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
         });
+      }
     }
   }
+
+  // ───────────────────────── BUILD ─────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -169,12 +188,16 @@ class _WithdrawModalState extends State<WithdrawModal> {
         ? (user?.balance ?? 0)
         : (user?.referralBalance ?? 0);
 
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    final fee = (amount * AppConstants.withdrawalFee).round();
+    final receive = amount > 0 ? amount - fee : 0;
+
     return Container(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 20,
         right: 20,
-        top: 24,
+        top: 12,
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -185,327 +208,212 @@ class _WithdrawModalState extends State<WithdrawModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // drag handle
             Center(
               child: Container(
-                width: 64,
-                height: 64,
+                width: 42,
+                height: 5,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.amber, Colors.orange],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.orange.withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
+                  color: const Color(0xFFE2E2E7),
+                  borderRadius: BorderRadius.circular(5),
                 ),
-                child: const Icon(
-                  Icons.arrow_upward,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Center(
-              child: Text(
-                "Withdraw Funds",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Center(
-              child: Text(
-                "Withdraw your earnings",
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Schedule info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                border: Border.all(color: Colors.amber.shade200),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.schedule, color: Colors.amber.shade800, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Withdrawal Schedule",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade900,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          "Every Friday (8 AM - 8 PM) • Minimum ₦5,000",
-                          style: TextStyle(
-                            color: Colors.amber.shade800,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Fee info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                border: Border.all(color: Colors.red.shade200),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Text("⚠️", style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Withdrawal Fee",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red.shade900,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          "A 10% charge will be applied to all withdrawals.",
-                          style: TextStyle(
-                            color: Colors.red.shade800,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
             const SizedBox(height: 20),
-
-            const Text(
-              "Select Balance to Withdraw",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.divider),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _balanceType,
-                  isExpanded: true,
-                  items: [
-                    DropdownMenuItem(
-                      value: 'referral',
-                      child: Text(
-                        'Referral Balance — ₦${(user?.referralBalance ?? 0).toInt()}',
+            // header
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: _kOrange,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kOrange.withOpacity(0.3),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
                       ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'task',
-                      child: Text(
-                        'Task Balance — ₦${(user?.balance ?? 0).toInt()}${!_isTaskAllowed ? " 🔒" : ""}',
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.arrow_upward_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Withdraw Funds",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: _kInk,
+                        ),
                       ),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null)
-                      setState(() {
-                        _balanceType = val;
-                      });
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (_balanceType == 'task' && !_isTaskAllowed)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  border: Border.all(color: Colors.red.shade200),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Text("🔒", style: TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Task Balance Locked",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red.shade900,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Text(
-                            "Task withdrawals are only available every Friday from 8:00 AM to 8:00 PM.",
-                            style: TextStyle(
-                              color: Colors.red.shade800,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      SizedBox(height: 2),
+                      Text(
+                        "Withdraw your earnings",
+                        style: TextStyle(fontSize: 13, color: _kMuted),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-
-            const Text(
-              "Amount (₦)",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
+              ],
             ),
+            const SizedBox(height: 20),
+
+            _infoBanner(
+              icon: Icons.schedule_rounded,
+              title: "Withdrawal Schedule",
+              body: "Available daily • Minimum ₦2,000 • 1 withdrawal per day",
+              color: _kOrange,
+              soft: _kOrangeSoft,
+            ),
+            const SizedBox(height: 10),
+            _infoBanner(
+              icon: Icons.percent_rounded,
+              title: "Withdrawal Fee",
+              body: "A 10% charge will be applied to all withdrawals.",
+              color: _kRed,
+              soft: _kRedSoft,
+            ),
+            if (_withdrawnToday) ...[
+              const SizedBox(height: 10),
+              _infoBanner(
+                icon: Icons.hourglass_bottom_rounded,
+                title: "Daily Limit Reached",
+                body:
+                    "You've already made a withdrawal today. You can withdraw again tomorrow.",
+                color: _kRed,
+                soft: _kRedSoft,
+              ),
+            ],
+            const SizedBox(height: 20),
+
+            _label("Select balance to withdraw"),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _balanceOption(
+                    value: 'referral',
+                    title: 'Referral',
+                    amount: (user?.referralBalance ?? 0).toInt(),
+                    icon: Icons.people_alt_rounded,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _balanceOption(
+                    value: 'task',
+                    title: 'Task',
+                    amount: (user?.balance ?? 0).toInt(),
+                    icon: Icons.task_alt_rounded,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            _label("Amount (₦)"),
             const SizedBox(height: 8),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText:
-                    "Enter amount (min ₦${AppConstants.minimumWithdrawal})",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.divider),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.amber),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+              onChanged: (_) => setState(() {}),
+              decoration: _decoration(
+                "Enter amount (min ₦${AppConstants.minimumWithdrawal})",
+                icon: Icons.payments_outlined,
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 4, left: 4),
+              padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(
                 "Available: ₦${availableBal.toInt()}",
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
+                style: const TextStyle(fontSize: 12, color: _kMuted),
+              ),
+            ),
+            if (amount > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _kBg,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  children: [
+                    _summaryRow("Amount", "₦${amount.toInt()}"),
+                    const SizedBox(height: 8),
+                    _summaryRow("Fee (10%)", "-₦$fee", valueColor: _kRed),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1, color: Color(0xFFE2E2E7)),
+                    ),
+                    _summaryRow(
+                      "You receive",
+                      "₦${receive.toInt()}",
+                      bold: true,
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+            ],
+            const SizedBox(height: 18),
 
-            const Text(
-              "Bank Details",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            _label("Bank details"),
             const SizedBox(height: 8),
-            _buildTextField(_bankNameController, "Bank Name"),
-            const SizedBox(height: 12),
-            _buildTextField(
-              _accountNumberController,
-              "Account Number",
-              isNumber: true,
+            TextField(
+              controller: _bankNameController,
+              decoration: _decoration("Bank Name", icon: Icons.account_balance_rounded),
             ),
-            const SizedBox(height: 12),
-            _buildTextField(_accountNameController, "Account Name"),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _accountNumberController,
+              keyboardType: TextInputType.number,
+              decoration: _decoration("Account Number", icon: Icons.pin_outlined),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _accountNameController,
+              decoration: _decoration("Account Name", icon: Icons.person_outline_rounded),
+            ),
             const SizedBox(height: 24),
 
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      side: const BorderSide(
-                        color: AppColors.divider,
-                        width: 2,
-                      ),
-                    ),
-                    child: const Text(
-                      "Cancel",
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _handleSubmit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            "Withdraw",
+                  flex: 2,
+                  child: Material(
+                    color: _kBg,
+                    borderRadius: BorderRadius.circular(40),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(40),
+                      onTap: () => Navigator.pop(context),
+                      child: const SizedBox(
+                        height: 62,
+                        child: Center(
+                          child: Text(
+                            "Cancel",
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _kInk,
                             ),
                           ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 10),
+                Expanded(flex: 3, child: _submitButton()),
               ],
             ),
             const SizedBox(height: 24),
@@ -515,29 +423,226 @@ class _WithdrawModalState extends State<WithdrawModal> {
     );
   }
 
-  Widget _buildTextField(
-    TextEditingController controller,
-    String hint, {
-    bool isNumber = false,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      decoration: InputDecoration(
-        hintText: hint,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.divider),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.amber),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+  // ───────────────────────── PIECES ─────────────────────────
+
+  Widget _submitButton() {
+    final disabled = _loading || _withdrawnToday;
+    return Material(
+      color: disabled ? _kBtnDark.withOpacity(0.55) : _kBtnDark,
+      borderRadius: BorderRadius.circular(40),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(40),
+        onTap: disabled ? null : _handleSubmit,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 7, 7, 7),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Withdraw",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: _kOrange,
+                  shape: BoxShape.circle,
+                ),
+                child: _loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _label(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: _kInk,
+        ),
+      );
+
+  Widget _infoBanner({
+    required IconData icon,
+    required String title,
+    required String body,
+    required Color color,
+    required Color soft,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: soft,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _kInk,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    height: 1.4,
+                    color: Color(0xFF55555F),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _balanceOption({
+    required String value,
+    required String title,
+    required int amount,
+    required IconData icon,
+  }) {
+    final selected = _balanceType == value;
+    return GestureDetector(
+      onTap: () => setState(() => _balanceType = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? _kOrangeSoft : _kBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? _kOrange : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, size: 20, color: selected ? _kOrange : _kMuted),
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 18,
+                  color: selected ? _kOrange : const Color(0xFFCFCFD6),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 12, color: _kMuted),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "₦$amount",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: _kInk,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    String value, {
+    bool bold = false,
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: bold ? 14 : 13,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+            color: bold ? _kInk : _kMuted,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: bold ? 16 : 13,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w700,
+            color: valueColor ?? (bold ? _kOrange : _kInk),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _decoration(String hint, {required IconData icon}) {
+    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: c, width: w),
+        );
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _kMuted, fontSize: 14),
+      prefixIcon: Icon(icon, color: _kMuted, size: 20),
+      filled: true,
+      fillColor: _kBg,
+      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      border: border(Colors.transparent),
+      enabledBorder: border(Colors.transparent),
+      focusedBorder: border(_kOrange, 1.5),
     );
   }
 }

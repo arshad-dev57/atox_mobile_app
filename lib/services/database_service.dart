@@ -14,12 +14,49 @@ class DatabaseService {
     await _firestore.collection('users').doc(uid).update(data);
   }
 
+  // Atomically adjust a user's balance/totalEarned using FieldValue.increment.
+  // Using a delta avoids race conditions when multiple writes happen (e.g. ad
+  // rewards + withdrawals), so the dashboard and every other screen stay in sync.
+  // Uses set(merge) so missing numeric fields are created instead of failing.
+  Future<void> incrementUserData(
+    String uid, {
+    double? balanceDelta,
+    double? referralBalanceDelta,
+    double? totalEarnedDelta,
+  }) async {
+    final Map<String, dynamic> data = {};
+    if (balanceDelta != null) {
+      data['balance'] = FieldValue.increment(balanceDelta);
+    }
+    if (referralBalanceDelta != null) {
+      data['referralBalance'] = FieldValue.increment(referralBalanceDelta);
+    }
+    if (totalEarnedDelta != null) {
+      data['totalEarned'] = FieldValue.increment(totalEarnedDelta);
+    }
+    if (data.isNotEmpty) {
+      data['updatedAt'] = DateTime.now().toIso8601String();
+      await _firestore.collection('users').doc(uid).set(
+            data,
+            SetOptions(merge: true),
+          );
+    }
+  }
+
   Stream<UserModel> getUserStream(String uid) {
     return _firestore
         .collection('users')
         .doc(uid)
         .snapshots()
-        .map((doc) => UserModel.fromMap(doc.data() as Map<String, dynamic>));
+        .map((doc) {
+      final data = doc.data();
+      if (data == null) {
+        // Document missing — emit a blank user so the UI doesn't crash and
+        // keeps listening for when the doc is created.
+        return UserModel(uid: uid);
+      }
+      return UserModel.fromMap({...data, 'uid': data['uid'] ?? uid});
+    });
   }
 
   // Purchase operations
@@ -73,6 +110,21 @@ class DatabaseService {
     await _firestore.collection('withdrawals').add(withdrawal.toMap());
   }
 
+  /// Returns true if the user already has a withdrawal request created today
+  /// (Nigerian local day). Used to enforce the "one withdrawal per day" rule.
+  /// Uses the parsed [WithdrawalModel] list so it works whether `createdAt`
+  /// was written as an ISO string (mobile) or a Timestamp (web).
+  Future<bool> hasWithdrawnToday(String userId) async {
+    final withdrawals = await getUserWithdrawals(userId);
+    final nowNg = DateTime.now().toUtc().add(const Duration(hours: 1));
+    return withdrawals.any((w) {
+      final createdNg = w.createdAt.toUtc().add(const Duration(hours: 1));
+      return createdNg.year == nowNg.year &&
+          createdNg.month == nowNg.month &&
+          createdNg.day == nowNg.day;
+    });
+  }
+
   Future<List<WithdrawalModel>> getUserWithdrawals(String userId) async {
     QuerySnapshot snapshot = await _firestore
         .collection('withdrawals')
@@ -83,6 +135,17 @@ class DatabaseService {
     return snapshot.docs
         .map((doc) => WithdrawalModel.fromMap({...doc.data() as Map<String, dynamic>, 'id': doc.id}))
         .toList();
+  }
+
+  Stream<List<WithdrawalModel>> getUserWithdrawalsStream(String userId) {
+    return _firestore
+        .collection('withdrawals')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => WithdrawalModel.fromMap({...doc.data() as Map<String, dynamic>, 'id': doc.id}))
+            .toList());
   }
 
   // Recharge operations
